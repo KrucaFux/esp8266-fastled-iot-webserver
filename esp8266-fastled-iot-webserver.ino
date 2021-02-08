@@ -60,11 +60,11 @@ extern "C" {
 
 /*######################## MAIN CONFIG ########################*/
 #define LED_TYPE            WS2812B                     // You might also use a WS2811 or any other strip that is Fastled compatible 
-#define DATA_PIN            D3                          // Be aware: the pin mapping might be different on boards like the NodeMCU
+#define DATA_PIN            2                          // Be aware: the pin mapping might be different on boards like the NodeMCU
 //#define CLK_PIN             D5                        // Only required when using 4-pin SPI-based LEDs
 #define CORRECTION          UncorrectedColor            // If colors are weird use TypicalLEDStrip
 #define COLOR_ORDER         GRB                         // Change this if colors are swapped (in my case, red was swapped with green)
-#define MILLI_AMPS          10000                       // IMPORTANT: set the max milli-Amps of your power supply (4A = 4000mA)
+#define MILLI_AMPS          2000                       // IMPORTANT: set the max milli-Amps of your power supply (4A = 4000mA)
 #define VOLTS               5                           // Voltage of the Power Supply
 
 #define LED_DEBUG 1                     // enable debug messages on serial console, set to 0 to disable debugging
@@ -106,7 +106,7 @@ extern "C" {
 // Device Configuration:
 //---------------------------------------------------------------------------------------------------------//
 #if LED_DEVICE_TYPE == 0                // Generic LED-Strip
-    #define NUM_LEDS 24
+    #define NUM_LEDS 176
     //#define NUM_LEDS 33
     //#define NUM_LEDS 183
     #define BAND_GROUPING    1            // Groups part of the band to save performance and network traffic
@@ -148,7 +148,7 @@ extern "C" {
 //---------------------------------------------------------------------------------------------------------//
 // Feature Configuration: Enabled by removing the "//" in front of the define statements
 //---------------------------------------------------------------------------------------------------------//
-    //#define ENABLE_OTA_SUPPORT                // requires ArduinoOTA - library, not working on esp's with 1MB memory (esp-01, Wemos D1 lite ...)
+    #define ENABLE_OTA_SUPPORT                // requires ArduinoOTA - library, not working on esp's with 1MB memory (esp-01, Wemos D1 lite ...)
         //#define OTA_PASSWORD "passwd123"      //  password that is required to update the esp's firmware wireless
 
     #define ENABLE_MULTICAST_DNS              // allows to access the UI via "http://<HOSTNAME>.local/", implemented by GitHub/WarDrake
@@ -484,6 +484,7 @@ CRGBPalette16 gTargetPalette(gGradientPalettes[0]);
 CRGBPalette16 IceColors_p = CRGBPalette16(CRGB::Black, CRGB::Blue, CRGB::Aqua, CRGB::White);
 
 uint8_t currentPatternIndex = 2; // Index number of which pattern is current
+uint8_t previousPatternIndex = 2; // Index number of last pattern
 uint8_t autoplay = 0;
 
 uint8_t autoplayDuration = 10;
@@ -541,23 +542,23 @@ PatternAndNameList patterns = {
     // animation patterns                            // palet  speed  color  spark  twinkle
     { pride,                  "Pride",                  false, false, false, false, false},
     { colorWaves,             "Color Waves",            false, false, false, false, false},
-    { rainbow,                "Horizontal Rainbow",     false, false, false, false, false},
-    { rainbowSolid,           "Solid Rainbow",          false, false, false, false, false},
-    { confetti,               "Confetti",               false, false, false, false, false},
+    { rainbow,                "Horizontal Rainbow",     false, true,  false, false, false},
+    { rainbowSolid,           "Solid Rainbow",          false, true,  false, false, false},
+    { confetti,               "Confetti",               false, true,  false, false, false},
     { sinelon,                "Sinelon",                true,  true,  false, false, false},
     { bpm,                    "Beat",                   true,  true,  false, false, false},
-    { juggle,                 "Juggle",                 false, false, false, false, false},
-    { fire,                   "Fire",                   false, false, false, true,  false},
-    { water,                  "Water",                  false, false, false, true,  false},
+    { juggle,                 "Juggle",                 false, true,  false, false, false},
+    { fire,                   "Fire",                   false, true,  false, true,  false},
+    { water,                  "Water",                  false, true,  false, true,  false},
     { strobe,                 "Strobe",                 false, true,  true,  false, false},
     { rainbow_strobe,         "Rainbow Strobe",         false, true,  false, false, false},
     { smooth_rainbow_strobe,  "Smooth Rainbow Strobe",  false, true,  false, false, false},
 
     // DigitalJohnson patterns                       // palet  speed  color  spark  twinkle
-    { rainbowRoll,            "Rainbow Roll",           false, false, false, false, false},
+    { rainbowRoll,            "Rainbow Roll",           false, true,  false, false, false},
     { rainbowBeat,            "Rainbow Beat",           false, true,  false, false, false},
-    { randomPaletteFades,     "Palette Fades",          true,  false, false, false, false},
-    { rainbowChase,           "Rainbow Chase",          false, false, false, false, false},
+    { randomPaletteFades,     "Palette Fades",          true,  true,  false, false, false},
+    { rainbowChase,           "Rainbow Chase",          false, true,  false, false, false},
     { randomDots,             "Rainbow Dots",           false, false, false, false, false},
     { randomFades,            "Rainbow Fades",          false, false, false, false, false},
     { policeLights,           "Police Lights",          false, false, false, false, false},
@@ -1453,10 +1454,9 @@ void loop() {
     EVERY_N_MILLISECONDS(40) {
         // slowly blend the current palette to the next
         nblendPaletteTowardPalette(gCurrentPalette, gTargetPalette, 8);
-        gHue++;  // slowly cycle the "base color" through the rainbow
-        if (gHue % 16 == 0)slowHue++;
-        if (gHue % 127 == 0)verySlowHue++;
     }
+
+    updateHue();
 
     if (autoplay && (millis() > autoPlayTimeout)) {
         adjustPattern(true);
@@ -1464,12 +1464,12 @@ void loop() {
     }
 
     if (power == 0) {
-        fill_solid(leds, NUM_LEDS, CRGB::Black);
+        fadeToBlackBy(leds, NUM_LEDS, 5);
     } else {
         // Call the current pattern function once, updating the 'leds' array
         patterns[currentPatternIndex].pattern();
     }
-
+    
     FastLED.show();
 
     // init time
@@ -1511,6 +1511,7 @@ void loop() {
         loop_counter = 0;
     }
     loop_counter += 1;
+    previousPatternIndex = currentPatternIndex;
 }
 
 void loadConfig() {
@@ -1702,22 +1703,19 @@ void setAutoplayDuration(uint8_t value)
 // increase or decrease the current pattern number, and wrap around at the ends
 void adjustPattern(bool up)
 {
+    if (autoplay == 1) {
 #ifdef RANDOM_AUTOPLAY_PATTERN
-    if (autoplay == 1)
-    {
         uint8_t lastpattern = currentPatternIndex;
         while (currentPatternIndex == lastpattern)
         {
             uint8_t newpattern = random8(0, patternCount - 1);
             if (newpattern != lastpattern) currentPatternIndex = newpattern;
         }
-    }
 #else // RANDOM_AUTOPLAY_PATTERN
-    if (up)
         currentPatternIndex++;
-    else
-        currentPatternIndex--;
 #endif
+    }
+
     if (autoplay == 0)
     {
         if (up)
@@ -1761,12 +1759,10 @@ void setPattern(uint8_t value)
         setConfigChanged();
     }
 
-
     SERIAL_DEBUG_LNF("Setting: pattern: %s", patterns[currentPatternIndex].name.c_str())
 
     broadcastInt("pattern", currentPatternIndex);
 }
-
 
 void setPatternName(String name)
 {
@@ -1870,6 +1866,47 @@ float mapfloat(float x, float in_min, float in_max, float out_min, float out_max
 
 // ######################### pattern functions ###########################
 
+void updateHue()
+{
+    uint8_t hueUpdateInterval = 40;
+    uint8_t hueStep = 1;
+    static unsigned long nextHueUpdate = millis();
+
+    // adds speed control for some Rainbow patterns
+    if (patterns[currentPatternIndex].name == String("Horizontal Rainbow") or \
+        patterns[currentPatternIndex].name == String("Solid Rainbow") or \
+        patterns[currentPatternIndex].name == String("Rainbow Roll")) {
+
+        if (speed < 128) {
+            hueUpdateInterval = map(speed, 0, 255, 100, 0);
+        } else {
+            hueUpdateInterval = map(speed, 0, 255, 200, 0);
+            hueStep = 2;
+        }
+    }
+
+    if (millis() > nextHueUpdate) {
+        gHue += hueStep;  // slowly cycle the "base color" through the rainbow
+        if (gHue % 16 == 0)slowHue++;
+        if (gHue % 127 == 0)verySlowHue++;
+        nextHueUpdate = millis() + hueUpdateInterval;
+    }
+}
+
+bool updatePatternBasedOnSpeedSetting(uint8_t max_delay)
+{
+    uint8_t updateInterval = 0;
+    static unsigned long nexUpdate = millis();
+
+    updateInterval = map(speed, 0, 255, max_delay, 0);
+
+    if (millis() > nexUpdate) {
+        nexUpdate = millis() + updateInterval;
+        return true;
+    }
+
+    return false;
+}
 void strandTest()
 {
     static uint8_t i = 0;
@@ -1957,6 +1994,9 @@ void rainbowSolid()
 
 void confetti()
 {
+    if (updatePatternBasedOnSpeedSetting(100) == false)
+        return;
+
     // random colored speckles that blink in and fade smoothly
     fadeToBlackBy(leds, NUM_LEDS, 10);
 #if LED_DEVICE_TYPE == 4
@@ -2020,12 +2060,15 @@ void juggle()
     static uint8_t lastSecond = 99;  // Static variable, means it's only defined once. This is our 'debounce' variable.
     uint8_t secondHand = (millis() / 1000) % 30; // IMPORTANT!!! Change '30' to a different value to change duration of the loop.
 
+    if (updatePatternBasedOnSpeedSetting(100) == false)
+        return;
+
     if (lastSecond != secondHand) { // Debounce to make sure we're not repeating an assignment.
         lastSecond = secondHand;
         switch (secondHand) {
-        case  0: numdots = 1; basebeat = 20; hueinc = 16; faderate = 2; thishue = 0; break; // You can change values here, one at a time , or altogether.
+        //case  0: numdots = 1; basebeat = 20; hueinc = 16; faderate = 2; thishue = 0; break; // You can change values here, one at a time , or altogether.
         case 10: numdots = 4; basebeat = 10; hueinc = 16; faderate = 8; thishue = 128; break;
-        case 20: numdots = 8; basebeat = 3; hueinc = 0; faderate = 8; thishue = random8(); break; // Only gets called once, and not continuously for the next several seconds. Therefore, no rainbows.
+        case 20: numdots = 8; basebeat = 5; hueinc = 0; faderate = 8; thishue = random8(); break; // Only gets called once, and not continuously for the next several seconds. Therefore, no rainbows.
         case 30: break;
         }
     }
@@ -2115,6 +2158,9 @@ void radialPaletteShift()
 // based on FastLED example Fire2012WithPalette: https://github.com/FastLED/FastLED/blob/master/examples/Fire2012WithPalette/Fire2012WithPalette.ino
 void heatMap(CRGBPalette16 palette, bool up)
 {
+    if (updatePatternBasedOnSpeedSetting(50) == false)
+        return;
+
     fill_solid(leds, NUM_LEDS, CRGB::Black);
 
     // Add entropy to random number generator; we use a lot of it.
@@ -2271,7 +2317,6 @@ void palettetest(CRGB* ledarray, uint16_t numleds, const CRGBPalette16& gCurrent
 
 TBlendType    blendType;
 TBlendType currentBlending; // Current blending type
-static bool firstRun = true; // First run flag used by some patterns
 
 struct timer_struct
 {
@@ -2320,6 +2365,9 @@ void rainbowBeat()
 // Uses colors from a palette of colors
 void randomPaletteFades()
 {
+    if (updatePatternBasedOnSpeedSetting(100) == false)
+        return;
+
     uint16_t i = random16(0, (NUM_LEDS - 1)); // Pick a random LED
     {
         uint8_t colorIndex = random8(0, 255); // Pick a random color (from palette)
@@ -2338,17 +2386,18 @@ void rainbowChase()
 {
     static int q = 0;
     fill_gradient(leds, (NUM_LEDS - 1), CHSV(gHue, 200, 255), 0, CHSV((gHue + 1), 200, 255), LONGEST_HUES);
+
+//    if (updatePatternBasedOnSpeedSetting(100) == false)
+//        return;
+
     for (int i = 0; (NUM_LEDS - 3) > i; i += 3)
     {
         leds[((i + q) + 1)] = CRGB(0, 0, 0);
         leds[((i + q) + 2)] = CRGB(0, 0, 0);
     }
-    if (2 > q)
-    {
+    if (2 > q) {
         q++;
-    }
-    else
-    {
+    } else {
         q = 0;
     }
 }
@@ -2421,9 +2470,16 @@ void snowFlakes()
 void lightning()
 {
     static timer_struct boltTimer;
-    if (firstRun)
+    if (previousPatternIndex != currentPatternIndex)
     {
-        firstRun = false;
+        // slowly fade previous patern to black
+        for (uint8_t i = 0; i < 90; i++) {
+            fadeToBlackBy( leds, NUM_LEDS, 5);
+            LEDS.show();
+            delay(2);
+        }
+        fill_solid(leds, NUM_LEDS, CRGB::Black);
+        LEDS.show();
         boltTimer.period = 0;
         boltTimer.mark = millis();
     }
