@@ -500,7 +500,6 @@ function rgbToComponents(rgb) {
 
 function updateDisplayedFields(pattern = null) {
 
-  return;
   // default value
   var pattern_index = patternData.value;
 
